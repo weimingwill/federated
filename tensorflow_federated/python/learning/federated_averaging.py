@@ -22,7 +22,7 @@ Communication-Efficient Learning of Deep Networks from Decentralized Data
 """
 
 import collections
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 import warnings
 
 import tensorflow as tf
@@ -37,6 +37,8 @@ from tensorflow_federated.python.learning import model as model_lib
 from tensorflow_federated.python.learning import model_utils
 from tensorflow_federated.python.learning.framework import dataset_reduce
 from tensorflow_federated.python.learning.framework import optimizer_utils
+from tensorflow_federated.python.learning.optimizers import keras_optimizer
+from tensorflow_federated.python.learning.optimizers import optimizer as optimizer_abc
 from tensorflow_federated.python.tensorflow_libs import tensor_utils
 
 
@@ -46,7 +48,8 @@ class ClientFedAvg(optimizer_utils.ClientDeltaFn):
   def __init__(
       self,
       model: model_lib.Model,
-      optimizer: tf.keras.optimizers.Optimizer,
+      optimizer: Union[optimizer_abc.Optimizer,
+                       Callable[[], tf.keras.optimizers.Optimizer]],
       client_weighting: client_weight_lib.ClientWeightType = client_weight_lib
       .ClientWeighting.NUM_EXAMPLES,
       use_experimental_simulation_loop: bool = False):
@@ -58,7 +61,7 @@ class ClientFedAvg(optimizer_utils.ClientDeltaFn):
 
     Args:
       model: A `tff.learning.Model` instance.
-      optimizer: A `tf.keras.Optimizer` instance.
+      optimizer: A `tf.keras.Optimizer` instance. NOT QUITE. UPDATE.
       client_weighting: A value of `tff.learning.ClientWeighting` that
         specifies a built-in weighting method, or a callable that takes the
         output of `model.report_local_outputs` and returns a tensor that
@@ -68,7 +71,12 @@ class ClientFedAvg(optimizer_utils.ClientDeltaFn):
     """
     py_typecheck.check_type(model, model_lib.Model)
     self._model = model_utils.enhance(model)
-    self._optimizer = optimizer
+    if isinstance(optimizer, optimizer_abc.Optimizer):
+      self._optimizer = optimizer
+    else:
+      self._optimizer = keras_optimizer.KerasOptimizer(
+          optimizer, self._model.weights.trainable, False)
+
     py_typecheck.check_type(self._model, model_utils.EnhancedModel)
     client_weight_lib.check_is_client_weighting_or_callable(client_weighting)
     self._client_weighting = client_weighting
@@ -86,25 +94,38 @@ class ClientFedAvg(optimizer_utils.ClientDeltaFn):
     optimizer = self._optimizer
     tf.nest.map_structure(lambda a, b: a.assign(b), model.weights,
                           initial_weights)
+    trainable_specs = tf.nest.map_structure(
+        lambda v: tf.TensorSpec(v.shape, v.dtype), model.weights.trainable)
 
-    def reduce_fn(num_examples_sum, batch):
+    def reduce_fn(state, batch):
       """Train `tff.learning.Model` on local client batch."""
+      num_examples_sum, optimizer_state = state
+
       with tf.GradientTape() as tape:
         output = model.forward_pass(batch, training=True)
 
       gradients = tape.gradient(output.loss, model.weights.trainable)
-      optimizer.apply_gradients(zip(gradients, model.weights.trainable))
+      optimizer_state, updated_weights = optimizer.next(optimizer_state,
+                                                        model.weights.trainable,
+                                                        gradients)
+      if not isinstance(optimizer, keras_optimizer.KerasOptimizer):
+        # Keras optimizer mutates model variables in with the `next` step.
+        tf.nest.map_structure(lambda a, b: a.assign(b), model.weights.trainable,
+                              updated_weights)
 
       if output.num_examples is None:
-        return num_examples_sum + tf.shape(
-            output.predictions, out_type=tf.int64)[0]
+        num_examples_sum += tf.shape(output.predictions, out_type=tf.int64)[0]
       else:
-        return num_examples_sum + tf.cast(output.num_examples, tf.int64)
+        num_examples_sum += tf.cast(output.num_examples, tf.int64)
 
-    num_examples_sum = self._dataset_reduce_fn(
-        reduce_fn,
-        dataset,
-        initial_state_fn=lambda: tf.zeros(shape=[], dtype=tf.int64))
+      return num_examples_sum, optimizer_state
+
+    def initial_state_for_reduce_fn():
+      return tf.zeros(
+          shape=[], dtype=tf.int64), optimizer.initialize(trainable_specs)
+
+    num_examples_sum, _ = self._dataset_reduce_fn(
+        reduce_fn, dataset, initial_state_fn=initial_state_for_reduce_fn)
 
     weights_delta = tf.nest.map_structure(tf.subtract, model.weights.trainable,
                                           initial_weights.trainable)
@@ -137,9 +158,10 @@ DEFAULT_SERVER_OPTIMIZER_FN = lambda: tf.keras.optimizers.SGD(learning_rate=1.0)
 # `model_update_aggregation_factory`.
 def build_federated_averaging_process(
     model_fn: Callable[[], model_lib.Model],
-    client_optimizer_fn: Callable[[], tf.keras.optimizers.Optimizer],
-    server_optimizer_fn: Callable[
-        [], tf.keras.optimizers.Optimizer] = DEFAULT_SERVER_OPTIMIZER_FN,
+    client_optimizer_fn: Union[optimizer_abc.Optimizer,
+                               Callable[[], tf.keras.optimizers.Optimizer]],
+    server_optimizer_fn: Union[optimizer_abc.Optimizer, Callable[
+        [], tf.keras.optimizers.Optimizer]] = DEFAULT_SERVER_OPTIMIZER_FN,
     *,  # Require named (non-positional) parameters for the following kwargs:
     client_weighting: Optional[client_weight_lib.ClientWeightType] = None,
     broadcast_process: Optional[measured_process.MeasuredProcess] = None,
@@ -258,7 +280,7 @@ def build_federated_averaging_process(
         DeprecationWarning)
 
   def client_fed_avg(model_fn: Callable[[], model_lib.Model]) -> ClientFedAvg:
-    return ClientFedAvg(model_fn(), client_optimizer_fn(), client_weighting,
+    return ClientFedAvg(model_fn(), client_optimizer_fn, client_weighting,
                         use_experimental_simulation_loop)
 
   iter_proc = optimizer_utils.build_model_delta_optimizer_process(

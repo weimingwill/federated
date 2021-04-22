@@ -34,11 +34,14 @@ from tensorflow_federated.python.core.templates import iterative_process
 from tensorflow_federated.python.core.templates import measured_process
 from tensorflow_federated.python.learning import model as model_lib
 from tensorflow_federated.python.learning import model_utils
+from tensorflow_federated.python.learning.optimizers import keras_optimizer
+from tensorflow_federated.python.learning.optimizers import optimizer as optimizer_abc
 from tensorflow_federated.python.tensorflow_libs import tensor_utils
 
 # Type aliases.
 _ModelConstructor = Callable[[], model_lib.Model]
-_OptimizerConstructor = Callable[[], tf.keras.optimizers.Optimizer]
+_OptimizerConstructor = Union[optimizer_abc.Optimizer,
+                              Callable[[], tf.keras.optimizers.Optimizer]]
 
 
 class ProcessTypeError(Exception):
@@ -267,11 +270,16 @@ def _build_initialize_computation(
       `tf.Variable`s for the global optimizer state.
     """
     model_variables = model_utils.ModelWeights.from_model(model_fn())
-    optimizer = server_optimizer_fn()
-    # We must force variable creation for momentum and adaptive optimizers.
-    optimizer_vars = _eagerly_create_optimizer_variables(
-        model_variables=model_variables, optimizer=optimizer)
-    return model_variables, optimizer_vars,
+    if isinstance(server_optimizer_fn, optimizer_abc.Optimizer):
+      optimizer = server_optimizer_fn
+    else:
+      optimizer = keras_optimizer.KerasOptimizer(server_optimizer_fn,
+                                                 model_variables.trainable,
+                                                 True)
+    trainable_specs = tf.nest.map_structure(
+        lambda v: tf.TensorSpec(v.shape, v.dtype), model_variables.trainable)
+    optimizer_state = optimizer.initialize(trainable_specs)
+    return model_variables, optimizer_state
 
   @computations.federated_computation()
   def initialize_computation():
@@ -328,20 +336,23 @@ def _build_one_round_computation(
   # still need this.
   with tf.Graph().as_default():
     whimsy_model_for_metadata = model_fn()
+    model_weights = model_utils.ModelWeights.from_model(
+        whimsy_model_for_metadata)
     model_weights_type = model_utils.weights_type_from_model(
         whimsy_model_for_metadata)
 
-    whimsy_optimizer = server_optimizer_fn()
-    # We must force variable creation for momentum and adaptive optimizers.
-    _eagerly_create_optimizer_variables(
-        model_variables=model_utils.ModelWeights.from_model(
-            whimsy_model_for_metadata),
-        optimizer=whimsy_optimizer)
-    optimizer_variable_type = type_conversions.type_from_tensors(
-        whimsy_optimizer.variables())
+    if isinstance(server_optimizer_fn, optimizer_abc.Optimizer):
+      optimizer = server_optimizer_fn
+    else:
+      optimizer = keras_optimizer.KerasOptimizer(server_optimizer_fn,
+                                                 model_weights.trainable, True)
+    trainable_specs = tf.nest.map_structure(
+        lambda v: tf.TensorSpec(v.shape, v.dtype), model_weights.trainable)
+    optimizer_state_type = type_conversions.type_from_tensors(
+        optimizer.initialize(trainable_specs))
 
   @computations.tf_computation(model_weights_type, model_weights_type.trainable,
-                               optimizer_variable_type)
+                               optimizer_state_type)
   @tf.function
   def server_update(global_model, mean_model_delta, optimizer_state):
     """Updates the global model with the mean model update from clients."""
@@ -350,16 +361,17 @@ def _build_one_round_computation(
       model_variables = tf.nest.map_structure(
           lambda t: tf.Variable(initial_value=tf.zeros(t.shape, t.dtype)),
           global_model)
-      optimizer = server_optimizer_fn()
-      # We must force variable creation for momentum and adaptive optimizers.
-      _eagerly_create_optimizer_variables(
-          model_variables=model_variables, optimizer=optimizer)
-    optimizer_variables = optimizer.variables()
+      if isinstance(server_optimizer_fn, optimizer_abc.Optimizer):
+        optimizer = server_optimizer_fn
+      else:
+        optimizer = keras_optimizer.KerasOptimizer(server_optimizer_fn,
+                                                   model_variables.trainable,
+                                                   True)
+
     # Set the variables to the current global model, the optimizer will
     # update these variables.
-    tf.nest.map_structure(lambda a, b: a.assign(b),
-                          (model_variables, optimizer_variables),
-                          (global_model, optimizer_state))
+    tf.nest.map_structure(lambda a, b: a.assign(b), model_variables,
+                          global_model)
     # We might have a NaN value e.g. if all of the clients processed had no
     # data, so the denominator in the federated_mean is zero. If we see any
     # NaNs, zero out the whole update.
@@ -368,11 +380,16 @@ def _build_one_round_computation(
     finite_weights_delta, _ = tensor_utils.zero_all_if_any_non_finite(
         mean_model_delta)
     # Update the global model variables with the delta as a pseudo-gradient.
-    _apply_delta(
-        optimizer=optimizer,
-        model_variables=model_variables,
-        delta=finite_weights_delta)
-    return model_variables, optimizer_variables
+    negative_weights_delta = tf.nest.map_structure(lambda w: -1.0 * w,
+                                                   finite_weights_delta)
+    optimizer_state, updated_weights = optimizer.next(optimizer_state,
+                                                      model_variables.trainable,
+                                                      negative_weights_delta)
+    if not isinstance(optimizer, keras_optimizer.KerasOptimizer):
+      # Keras optimizer mutates model variables in with the `next` step.
+      tf.nest.map_structure(lambda a, b: a.assign(b), model_variables.trainable,
+                            updated_weights)
+    return model_variables, optimizer_state
 
   dataset_type = computation_types.SequenceType(
       whimsy_model_for_metadata.input_spec)
@@ -400,7 +417,7 @@ def _build_one_round_computation(
 
   server_state_type = ServerState(
       model=model_weights_type,
-      optimizer_state=optimizer_variable_type,
+      optimizer_state=optimizer_state_type,
       delta_aggregate_state=aggregation_state,
       model_broadcast_state=broadcast_state)
 
@@ -626,7 +643,8 @@ def build_model_delta_optimizer_process(
   """
   py_typecheck.check_callable(model_fn)
   py_typecheck.check_callable(model_to_client_delta_fn)
-  py_typecheck.check_callable(server_optimizer_fn)
+  if not isinstance(server_optimizer_fn, optimizer_abc.Optimizer):
+    py_typecheck.check_callable(server_optimizer_fn)
 
   model_weights_type = model_utils.weights_type_from_model(model_fn)
 

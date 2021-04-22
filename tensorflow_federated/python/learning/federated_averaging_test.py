@@ -32,6 +32,15 @@ from tensorflow_federated.python.learning import model_examples
 from tensorflow_federated.python.learning import model_update_aggregator
 from tensorflow_federated.python.learning import model_utils
 from tensorflow_federated.python.learning.framework import dataset_reduce
+from tensorflow_federated.python.learning.optimizers import sgdm
+
+
+def _tff_optimizer():
+  return sgdm.SGD(learning_rate=0.1)
+
+
+def _keras_optimizer_fn():
+  return lambda: tf.keras.optimizers.SGD(learning_rate=0.1)
 
 
 class NumExamplesCounter(tf.keras.metrics.Sum):
@@ -91,7 +100,7 @@ class FederatedAveragingClientWithModelTest(test_case.TestCase,
       client_weighting = client_weight_lib.ClientWeighting.UNIFORM
     client_tf = federated_averaging.ClientFedAvg(
         model,
-        tf.keras.optimizers.SGD(learning_rate=0.1, **optimizer_kwargs),
+        lambda: tf.keras.optimizers.SGD(learning_rate=0.1, **optimizer_kwargs),
         client_weighting=client_weighting,
         use_experimental_simulation_loop=simulation)
     client_outputs = self.evaluate(client_tf(dataset, self.initial_weights()))
@@ -116,7 +125,7 @@ class FederatedAveragingClientWithModelTest(test_case.TestCase,
     dataset = self.create_dataset()
     client_tf = federated_averaging.ClientFedAvg(
         model,
-        tf.keras.optimizers.SGD(learning_rate=0.1),
+        lambda: tf.keras.optimizers.SGD(learning_rate=0.1),
         client_weighting=lambda _: tf.constant(1.5))
     client_outputs = client_tf(dataset, self.initial_weights())
     self.assertEqual(self.evaluate(client_outputs.weights_delta_weight), 1.5)
@@ -126,7 +135,7 @@ class FederatedAveragingClientWithModelTest(test_case.TestCase,
     model = self.create_model()
     dataset = self.create_dataset()
     client_tf = federated_averaging.ClientFedAvg(
-        model, tf.keras.optimizers.SGD(learning_rate=0.1))
+        model, lambda: tf.keras.optimizers.SGD(learning_rate=0.1))
     init_weights = self.initial_weights()
     init_weights.trainable[1] = bad_value
     client_outputs = client_tf(dataset, init_weights)
@@ -146,7 +155,7 @@ class FederatedAveragingClientWithModelTest(test_case.TestCase,
     dataset = self.create_dataset()
     client_tf = federated_averaging.ClientFedAvg(
         model,
-        tf.keras.optimizers.SGD(learning_rate=0.1),
+        lambda: tf.keras.optimizers.SGD(learning_rate=0.1),
         use_experimental_simulation_loop=simulation)
     client_tf(dataset, self.initial_weights())
     if simulation:
@@ -304,16 +313,29 @@ class FederatedAveragingModelTffTest(test_case.TestCase,
                           iterative_process.get_model_weights(state).trainable)
 
   @parameterized.named_parameters([
-      ('robust', model_update_aggregator.robust_aggregator),
-      ('dp', lambda: model_update_aggregator.dp_aggregator(1e-3, 3)),
-      ('compression', model_update_aggregator.compression_aggregator),
-      ('secure', model_update_aggregator.secure_aggregator),
+      ('robust_tff', model_update_aggregator.robust_aggregator,
+       _tff_optimizer()),
+      ('robust_keras', model_update_aggregator.robust_aggregator,
+       _keras_optimizer_fn()),
+      ('dp_tff', lambda: model_update_aggregator.dp_aggregator(1e-3, 3),
+       _tff_optimizer()),
+      ('dp_keras', lambda: model_update_aggregator.dp_aggregator(1e-3, 3),
+       _keras_optimizer_fn()),
+      ('compression_tff', model_update_aggregator.compression_aggregator,
+       _tff_optimizer()),
+      ('compression_keras', model_update_aggregator.compression_aggregator,
+       _keras_optimizer_fn()),
+      ('secure_tff', model_update_aggregator.secure_aggregator,
+       _tff_optimizer()),
+      ('secure_keras', model_update_aggregator.secure_aggregator,
+       _keras_optimizer_fn()),
   ])
   @test_utils.skip_test_for_multi_gpu
-  def test_recommended_aggregations_execute(self, default_aggregation):
+  def test_recommended_aggregations_execute(self, default_aggregation,
+                                            client_optimizer):
     process = federated_averaging.build_federated_averaging_process(
         model_fn=model_examples.LinearRegression,
-        client_optimizer_fn=lambda: tf.keras.optimizers.SGD(learning_rate=0.1),
+        client_optimizer_fn=client_optimizer,
         model_update_aggregation_factory=default_aggregation())
 
     ds = tf.data.Dataset.from_tensor_slices(
