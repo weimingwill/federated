@@ -65,9 +65,8 @@ class ClientSgd(optimizer_utils.ClientDeltaFn):
     """
     client_weight_lib.check_is_client_weighting_or_callable(client_weighting)
     self._client_weighting = client_weighting
-
-    self._model = model_utils.enhance(model)
-    py_typecheck.check_type(self._model, model_utils.EnhancedModel)
+    self._model = model
+    py_typecheck.check_type(self._model, model_utils.Model)
 
     self._dataset_reduce_fn = dataset_reduce.build_dataset_reduce_fn(
         use_experimental_simulation_loop)
