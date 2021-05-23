@@ -185,6 +185,8 @@ def main(argv):
 
   # train_data, test_data = get_emnist_dataset()
   train_data, test_data = get_emnist_dataset_new(FLAGS.data_dir)
+  print("Total number of clients:", len(train_data.client_ids))
+
 
   def tff_model_fn():
     """Constructs a fully initialized model for use in federated averaging."""
@@ -206,6 +208,11 @@ def main(argv):
   cumulative_accuracies = []
   cumulative_training_times = []
 
+  sampled_test_data = [
+      test_data.create_tf_dataset_for_client(client)
+      for client in test_data.client_ids
+  ]
+
   for round_num in range(FLAGS.total_rounds):
     sampled_clients = np.random.choice(
         train_data.client_ids,
@@ -213,11 +220,6 @@ def main(argv):
         replace=False)
     sampled_train_data = [
         train_data.create_tf_dataset_for_client(client)
-        for client in sampled_clients
-    ]
-
-    sampled_test_data = [
-        test_data.create_tf_dataset_for_client(client)
         for client in sampled_clients
     ]
 
