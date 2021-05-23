@@ -76,7 +76,7 @@ def get_emnist_dataset_new(data_dir):
         FLAGS.test_batch_size, drop_remainder=False)
 
   emnist_train = emnist_train.preprocess(preprocess_train_dataset)
-  emnist_test = emnist_test.preprocess(preprocess_train_dataset)
+  emnist_test = emnist_test.preprocess(preprocess_test_dataset)
   # emnist_test = preprocess_test_dataset(
   #     emnist_test.create_tf_dataset_from_all_clients())
   return emnist_train, emnist_test
@@ -185,7 +185,7 @@ def main(argv):
 
   # train_data, test_data = get_emnist_dataset()
   train_data, test_data = get_emnist_dataset_new(FLAGS.data_dir)
-  print("Total number of clients:", len(train_data.client_ids))
+  print("Total number of clients:", len(test_data.client_ids))
 
 
   def tff_model_fn():
