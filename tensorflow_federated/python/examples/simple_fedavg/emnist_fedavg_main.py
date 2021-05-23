@@ -214,7 +214,7 @@ def main(argv):
       model.from_weights(server_state.model_weights)
       accuracy = simple_fedavg_tf.keras_evaluate(model.keras_model, test_data, metric)
       print(f'Round {round_num} validation accuracy: {accuracy * 100.0}')
-      cumulative_accuracies.append(accuracy * 100.0)
+      cumulative_accuracies.append(accuracy.numpy() * 100.0)
       cumulative_training_times.append(time.time() - start_time)
   print("Cumulative accuracies:", cumulative_accuracies)
   print("Cumulative training times:", cumulative_training_times)
