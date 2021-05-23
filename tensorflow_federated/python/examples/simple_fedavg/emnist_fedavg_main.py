@@ -24,6 +24,7 @@ from absl import flags
 import numpy as np
 import tensorflow as tf
 import tensorflow_federated as tff
+import numpy as np
 
 from tensorflow_federated.python.examples.simple_fedavg import simple_fedavg_tf
 from tensorflow_federated.python.examples.simple_fedavg import simple_fedavg_tff
@@ -74,8 +75,9 @@ def get_emnist_dataset_new(data_dir):
         FLAGS.test_batch_size, drop_remainder=False)
 
   emnist_train = emnist_train.preprocess(preprocess_train_dataset)
-  emnist_test = preprocess_test_dataset(
-      emnist_test.create_tf_dataset_from_all_clients())
+  emnist_test = emnist_test.preprocess(preprocess_train_dataset)
+  # emnist_test = preprocess_test_dataset(
+  #     emnist_test.create_tf_dataset_from_all_clients())
   return emnist_train, emnist_test
 
 
@@ -197,6 +199,7 @@ def main(argv):
 
   cumulative_accuracies = []
   cumulative_training_times = []
+
   for round_num in range(FLAGS.total_rounds):
     sampled_clients = np.random.choice(
         train_data.client_ids,
@@ -206,14 +209,27 @@ def main(argv):
         train_data.create_tf_dataset_for_client(client)
         for client in sampled_clients
     ]
+
+    sampled_test_data = [
+        test_data.create_tf_dataset_for_client(client)
+        for client in sampled_clients
+    ]
+
     server_state, train_metrics = iterative_process.next(
         server_state, sampled_train_data)
     print(f'Round {round_num} training loss: {train_metrics}')
     if round_num % FLAGS.rounds_per_eval == 0:
       model.from_weights(server_state.model_weights)
-      accuracy = simple_fedavg_tf.keras_evaluate(model.keras_model, test_data, metric)
+      weights = []
+      accuracies = []
+      for data in sampled_test_data:
+        accuracy, data_amount = simple_fedavg_tf.keras_evaluate(model.keras_model, data, metric)
+        accuracies.append(accuracy)
+        weights.append(data_amount)
+      accuracy = np.average(accuracies, weights=weights)
+      # accuracy = simple_fedavg_tf.keras_evaluate(model.keras_model, test_data, metric)
       print(f'Round {round_num} validation accuracy: {accuracy * 100.0}')
-      cumulative_accuracies.append(accuracy.numpy() * 100.0)
+      cumulative_accuracies.append(accuracy * 100.0)
       cumulative_training_times.append(time.time() - start_time)
   print("Cumulative accuracies:", cumulative_accuracies)
   print("Cumulative training times:", cumulative_training_times)

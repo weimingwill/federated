@@ -82,10 +82,12 @@ class KerasModelWrapper(object):
 
 def keras_evaluate(model, test_data, metric):
   metric.reset_states()
+  data_amount = 0
   for batch in test_data:
+    data_amount += len(batch['x'])
     preds = model(batch['x'], training=False)
     metric.update_state(y_true=batch['y'], y_pred=preds)
-  return metric.result()
+  return metric.result(), data_amount
 
 
 @attr.s(eq=False, frozen=True, slots=True)
