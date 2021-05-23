@@ -16,7 +16,7 @@
 This is intended to be a minimal stand-alone experiment script built on top of
 core TFF.
 """
-
+import time
 import collections
 import functools
 from absl import app
@@ -27,6 +27,7 @@ import tensorflow_federated as tff
 
 from tensorflow_federated.python.examples.simple_fedavg import simple_fedavg_tf
 from tensorflow_federated.python.examples.simple_fedavg import simple_fedavg_tff
+from tensorflow_federated.python.examples.simple_fedavg.customized_dataset import load_data
 
 # Training hyperparameters
 flags.DEFINE_integer('total_rounds', 256, 'Number of total training rounds.')
@@ -37,6 +38,7 @@ flags.DEFINE_integer('client_epochs_per_round', 1,
                      'Number of epochs in the client to take per round.')
 flags.DEFINE_integer('batch_size', 16, 'Batch size used on the client.')
 flags.DEFINE_integer('test_batch_size', 128, 'Minibatch size of test data.')
+flags.DEFINE_string('data_dir', "", 'customized data directory')
 
 # Optimizer configuration (this defines one or more flags per optimizer).
 flags.DEFINE_float('server_learning_rate', 1.0, 'Server learning rate.')
@@ -44,6 +46,38 @@ flags.DEFINE_float('client_learning_rate', 0.1, 'Client learning rate.')
 
 FLAGS = flags.FLAGS
 
+
+def get_emnist_dataset_new(data_dir):
+  """Loads and preprocesses the EMNIST dataset.
+
+  Returns:
+    A `(emnist_train, emnist_test)` tuple where `emnist_train` is a
+    `tff.simulation.datasets.ClientData` object representing the training data
+    and `emnist_test` is a single `tf.data.Dataset` representing the test data
+    of all clients.
+  """
+  emnist_train, emnist_test = load_data(data_dir, "femnist")
+
+  def element_fn(element):
+    return collections.OrderedDict(
+        x=tf.expand_dims(element['pixels'], -1), y=element['label'])
+
+  def preprocess_train_dataset(dataset):
+    # Use buffer_size same as the maximum client dataset size,
+    # 418 for Federated EMNIST
+    return dataset.map(element_fn).shuffle(buffer_size=418).repeat(
+        count=FLAGS.client_epochs_per_round).batch(
+            FLAGS.batch_size, drop_remainder=False)
+
+  def preprocess_test_dataset(dataset):
+    return dataset.map(element_fn).batch(
+        FLAGS.test_batch_size, drop_remainder=False)
+
+  emnist_train = emnist_train.preprocess(preprocess_train_dataset)
+  emnist_test = preprocess_test_dataset(
+      emnist_test.create_tf_dataset_from_all_clients())
+
+  return emnist_train, emnist_test
 
 def get_emnist_dataset():
   """Loads and preprocesses the EMNIST dataset.
@@ -55,7 +89,7 @@ def get_emnist_dataset():
     of all clients.
   """
   emnist_train, emnist_test = tff.simulation.datasets.emnist.load_data(
-      only_digits=True)
+      only_digits=False)
 
   def element_fn(element):
     return collections.OrderedDict(
@@ -122,10 +156,12 @@ def server_optimizer_fn():
 
 
 def client_optimizer_fn():
-  return tf.keras.optimizers.SGD(learning_rate=FLAGS.client_learning_rate)
+  return tf.keras.optimizers.SGD(learning_rate=FLAGS.client_learning_rate, momentum=0.9)
 
 
 def main(argv):
+  start_time = time.time()
+  print("args", argv)
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
@@ -140,14 +176,18 @@ def main(argv):
   tff.backends.native.set_local_execution_context(
       server_tf_device=server_device, client_tf_devices=client_devices)
 
-  train_data, test_data = get_emnist_dataset()
+  # train_data, test_data = get_emnist_dataset()
+  train_data, test_data = get_emnist_dataset_new(FLAGS.data_dir)
 
   def tff_model_fn():
     """Constructs a fully initialized model for use in federated averaging."""
-    keras_model = create_original_fedavg_cnn_model(only_digits=True)
+    keras_model = create_original_fedavg_cnn_model(only_digits=False)
     loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-    return simple_fedavg_tf.KerasModelWrapper(keras_model,
-                                              test_data.element_spec, loss)
+    element_spec = collections.OrderedDict(
+        x=tf.TensorSpec([None, 28, 28, 1], tf.float32),
+        y=tf.TensorSpec([None], tf.int32))
+    return simple_fedavg_tf.KerasModelWrapper(keras_model, element_spec, loss)
+    # return simple_fedavg_tf.KerasModelWrapper(keras_model, test_data.element_spec, loss)
 
   iterative_process = simple_fedavg_tff.build_federated_averaging_process(
       tff_model_fn, server_optimizer_fn, client_optimizer_fn)
@@ -155,6 +195,9 @@ def main(argv):
 
   metric = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
   model = tff_model_fn()
+
+  cumulative_accuracies = []
+  cumulative_training_times = []
   for round_num in range(FLAGS.total_rounds):
     sampled_clients = np.random.choice(
         train_data.client_ids,
@@ -169,9 +212,13 @@ def main(argv):
     print(f'Round {round_num} training loss: {train_metrics}')
     if round_num % FLAGS.rounds_per_eval == 0:
       model.from_weights(server_state.model_weights)
-      accuracy = simple_fedavg_tf.keras_evaluate(model.keras_model, test_data,
-                                                 metric)
+      accuracy = simple_fedavg_tf.keras_evaluate(model.keras_model, test_data, metric)
       print(f'Round {round_num} validation accuracy: {accuracy * 100.0}')
+      cumulative_accuracies.append(accuracy * 100.0)
+      cumulative_training_times.append(time.time() - start_time)
+  print("Cumulative accuracies:", cumulative_accuracies)
+  print("Cumulative training times:", cumulative_training_times)
+  print("Total training time:", time.time() - start_time)
 
 
 if __name__ == '__main__':
