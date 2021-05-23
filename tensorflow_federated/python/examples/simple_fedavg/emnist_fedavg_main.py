@@ -39,6 +39,7 @@ flags.DEFINE_integer('client_epochs_per_round', 1,
                      'Number of epochs in the client to take per round.')
 flags.DEFINE_integer('batch_size', 16, 'Batch size used on the client.')
 flags.DEFINE_integer('test_batch_size', 128, 'Minibatch size of test data.')
+flags.DEFINE_integer('seed', 0, 'random seed.')
 flags.DEFINE_string('data_dir', "", 'customized data directory')
 
 # Optimizer configuration (this defines one or more flags per optimizer).
@@ -162,7 +163,12 @@ def client_optimizer_fn():
 
 def main(argv):
   start_time = time.time()
+
+  np.random.seed(FLAGS.seed)
+  tf.random.set_seed(FLAGS.seed)
+
   print("args", argv)
+  print("FLAGS", FLAGS.flags_into_string())
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
