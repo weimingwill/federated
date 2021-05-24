@@ -214,6 +214,7 @@ def main(argv):
   ]
 
   for round_num in range(FLAGS.total_rounds):
+    np.random.seed(round_num)
     sampled_clients = np.random.choice(
         train_data.client_ids,
         size=FLAGS.train_clients_per_round,
