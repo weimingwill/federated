@@ -146,7 +146,7 @@ def create_original_fedavg_cnn_model(only_digits=True):
       conv2d(filters=64),
       max_pool(),
       tf.keras.layers.Flatten(),
-      tf.keras.layers.Dense(512, activation=tf.nn.relu),
+      tf.keras.layers.Dense(2048, activation=tf.nn.relu),
       tf.keras.layers.Dense(10 if only_digits else 62),
   ])
 
@@ -218,6 +218,9 @@ def main(argv):
         train_data.client_ids,
         size=FLAGS.train_clients_per_round,
         replace=False)
+
+    print("Round {} sampled clients: {}".format(round_num, sampled_clients))
+
     sampled_train_data = [
         train_data.create_tf_dataset_for_client(client)
         for client in sampled_clients
