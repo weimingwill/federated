@@ -19,8 +19,8 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-from tensorflow_federated.python.research.utils import metrics_manager
-from tensorflow_federated.python.research.utils import utils_impl
+from tensorflow_federated.python.examples.utils import metrics_manager
+from tensorflow_federated.python.examples.utils import utils_impl
 
 
 def _create_dummy_metrics():

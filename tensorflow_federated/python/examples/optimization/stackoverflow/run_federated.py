@@ -24,11 +24,11 @@ import tensorflow as tf
 from tensorflow_federated.python.research.optimization.shared import fed_avg_schedule
 from tensorflow_federated.python.research.optimization.shared import iterative_process_builder
 from tensorflow_federated.python.research.optimization.shared import keras_metrics
-from tensorflow_federated.python.research.utils import training_loop
-from tensorflow_federated.python.research.utils import training_utils
-from tensorflow_federated.python.research.utils import utils_impl
-from tensorflow_federated.python.research.utils.datasets import stackoverflow_dataset
-from tensorflow_federated.python.research.utils.models import stackoverflow_models
+from tensorflow_federated.python.examples.utils import training_loop
+from tensorflow_federated.python.examples.utils import training_utils
+from tensorflow_federated.python.examples.utils import utils_impl
+from tensorflow_federated.python.examples.utils.datasets import stackoverflow_dataset
+from tensorflow_federated.python.examples.utils.models import stackoverflow_models
 
 with utils_impl.record_new_flags() as hparam_flags:
   # Training hyperparameters

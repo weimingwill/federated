@@ -21,7 +21,7 @@ from absl import flags
 from absl import logging
 import tensorflow as tf
 
-from tensorflow_federated.python.research.optimization.shared import yogi
+from tensorflow_federated.python.examples.optimization.shared import yogi
 
 
 def _optimizer_canonical_name(optimizer_cls):

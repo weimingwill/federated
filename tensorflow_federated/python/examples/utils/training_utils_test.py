@@ -20,7 +20,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_federated as tff
 
-from tensorflow_federated.python.research.utils import training_utils
+from tensorflow_federated.python.examples.utils import training_utils
 
 
 def model_builder():

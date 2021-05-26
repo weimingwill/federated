@@ -21,10 +21,10 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_federated as tff
 
-from tensorflow_federated.python.research.utils import adapters
-from tensorflow_federated.python.research.utils import checkpoint_manager
-from tensorflow_federated.python.research.utils import metrics_manager
-from tensorflow_federated.python.research.utils import training_loop
+from tensorflow_federated.python.examples.utils import adapters
+from tensorflow_federated.python.examples.utils import checkpoint_manager
+from tensorflow_federated.python.examples.utils import metrics_manager
+from tensorflow_federated.python.examples.utils import training_loop
 
 _Batch = collections.namedtuple('Batch', ['x', 'y'])
 

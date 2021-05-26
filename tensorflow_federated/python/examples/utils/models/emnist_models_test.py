@@ -14,7 +14,7 @@
 
 import tensorflow as tf
 
-from tensorflow_federated.python.research.utils.models import emnist_models
+from tensorflow_federated.python.examples.utils.models import emnist_models
 
 
 class ModelCollectionTest(tf.test.TestCase):

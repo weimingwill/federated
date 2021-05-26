@@ -24,9 +24,9 @@ import tensorflow as tf
 
 from tensorflow_federated.python.research.optimization.shared import keras_callbacks
 from tensorflow_federated.python.research.optimization.shared import optimizer_utils
-from tensorflow_federated.python.research.utils import utils_impl
-from tensorflow_federated.python.research.utils.datasets import stackoverflow_lr_dataset
-from tensorflow_federated.python.research.utils.models import stackoverflow_lr_models
+from tensorflow_federated.python.examples.utils import utils_impl
+from tensorflow_federated.python.examples.utils.datasets import stackoverflow_lr_dataset
+from tensorflow_federated.python.examples.utils.models import stackoverflow_lr_models
 
 with utils_impl.record_new_flags() as hparam_flags:
   optimizer_utils.define_optimizer_flags('centralized')

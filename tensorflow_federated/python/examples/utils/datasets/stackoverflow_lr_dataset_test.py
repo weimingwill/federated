@@ -16,7 +16,7 @@
 import tensorflow as tf
 
 from tensorflow_federated.python.common_libs import test
-from tensorflow_federated.python.research.utils.datasets import stackoverflow_lr_dataset
+from tensorflow_federated.python.examples.utils.datasets import stackoverflow_lr_dataset
 
 
 TEST_BATCH_SIZE = stackoverflow_lr_dataset.TEST_BATCH_SIZE

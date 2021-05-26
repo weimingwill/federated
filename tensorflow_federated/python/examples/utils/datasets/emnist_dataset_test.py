@@ -14,7 +14,7 @@
 
 import tensorflow as tf
 
-from tensorflow_federated.python.research.utils.datasets import emnist_dataset
+from tensorflow_federated.python.examples.utils.datasets import emnist_dataset
 
 TEST_BATCH_SIZE = emnist_dataset.TEST_BATCH_SIZE
 

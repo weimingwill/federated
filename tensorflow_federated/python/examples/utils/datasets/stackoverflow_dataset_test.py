@@ -17,7 +17,7 @@ import numpy as np
 import tensorflow as tf
 
 from tensorflow_federated.python.common_libs import test
-from tensorflow_federated.python.research.utils.datasets import stackoverflow_dataset
+from tensorflow_federated.python.examples.utils.datasets import stackoverflow_dataset
 
 
 def _compute_length_of_dataset(ds):

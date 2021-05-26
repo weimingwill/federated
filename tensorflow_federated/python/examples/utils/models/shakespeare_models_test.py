@@ -15,7 +15,7 @@
 import tensorflow as tf
 
 from tensorflow_federated.python.research.optimization.shared import keras_metrics
-from tensorflow_federated.python.research.utils.models import shakespeare_models
+from tensorflow_federated.python.examples.utils.models import shakespeare_models
 
 
 class ModelsTest(tf.test.TestCase):

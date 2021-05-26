@@ -14,7 +14,7 @@
 
 import tensorflow as tf
 
-from tensorflow_federated.python.research.utils.datasets import shakespeare_dataset
+from tensorflow_federated.python.examples.utils.datasets import shakespeare_dataset
 
 
 def _compute_length_of_dataset(ds):

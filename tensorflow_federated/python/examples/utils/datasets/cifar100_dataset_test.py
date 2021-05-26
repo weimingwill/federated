@@ -16,7 +16,7 @@ import collections
 
 import tensorflow as tf
 
-from tensorflow_federated.python.research.utils.datasets import cifar100_dataset
+from tensorflow_federated.python.examples.utils.datasets import cifar100_dataset
 
 TEST_BATCH_SIZE = cifar100_dataset.TEST_BATCH_SIZE
 

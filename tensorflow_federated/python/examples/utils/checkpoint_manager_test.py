@@ -18,7 +18,7 @@ import os.path
 
 import tensorflow as tf
 
-from tensorflow_federated.python.research.utils import checkpoint_manager
+from tensorflow_federated.python.examples.utils import checkpoint_manager
 
 
 def _create_dummy_state(value=0):

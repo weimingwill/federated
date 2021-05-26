@@ -18,7 +18,7 @@ from typing import Dict, Any
 import pandas as pd
 import tensorflow as tf
 
-from tensorflow_federated.python.research.utils import utils_impl
+from tensorflow_federated.python.examples.utils import utils_impl
 
 
 class AtomicCSVLogger(tf.keras.callbacks.Callback):

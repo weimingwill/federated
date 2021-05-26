@@ -18,7 +18,7 @@ import os.path
 import attr
 import tensorflow as tf
 
-from tensorflow_federated.python.research.utils import checkpoint_utils
+from tensorflow_federated.python.examples.utils import checkpoint_utils
 
 
 @attr.s(frozen=True)

@@ -25,10 +25,10 @@ from absl import logging
 import pandas as pd
 import tensorflow as tf
 
-from tensorflow_federated.python.research.utils import adapters
-from tensorflow_federated.python.research.utils import checkpoint_manager
-from tensorflow_federated.python.research.utils import metrics_manager
-from tensorflow_federated.python.research.utils import utils_impl
+from tensorflow_federated.python.examples.utils import adapters
+from tensorflow_federated.python.examples.utils import checkpoint_manager
+from tensorflow_federated.python.examples.utils import metrics_manager
+from tensorflow_federated.python.examples.utils import utils_impl
 
 # Defining training loop flags
 with utils_impl.record_hparam_flags():
