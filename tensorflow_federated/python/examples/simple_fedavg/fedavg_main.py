@@ -31,8 +31,8 @@ from tensorflow_federated.python.examples.simple_fedavg import models
 from tensorflow_federated.python.examples.simple_fedavg import simple_fedavg_tf
 from tensorflow_federated.python.examples.simple_fedavg import simple_fedavg_tff
 from tensorflow_federated.python.examples.simple_fedavg.dataset_femnist import get_emnist_dataset
-from tensorflow_federated.python.examples.simple_fedavg import keras_metrics
 from tensorflow_federated.python.examples.simple_fedavg.dataset_shakespeare import construct_character_level_datasets
+# from tensorflow_federated.python.examples.simple_fedavg import keras_metrics
 
 # Training hyperparameters
 flags.DEFINE_integer('total_rounds', 256, 'Number of total training rounds.')
@@ -102,32 +102,32 @@ def get_model_fn():
         return simple_fedavg_tf.KerasModelWrapper(keras_model, element_spec, loss)
         # return simple_fedavg_tf.KerasModelWrapper(keras_model, test_data.element_spec, loss)
 
-    def tff_shakespeare_model_fn_():
-        model_builder = functools.partial(
-            models.create_recurrent_model, vocab_size=VOCAB_SIZE, sequence_length=dataset_shakespeare.SEQUENCE_LENGTH)
-        loss_builder = functools.partial(
-            tf.keras.losses.SparseCategoricalCrossentropy, from_logits=True)
-
-        def metrics_builder():
-            """Returns a `list` of `tf.keras.metric.Metric` objects."""
-            pad_token, _, _, _ = dataset_shakespeare.get_special_tokens()
-
-            return [
-                keras_metrics.NumBatchesCounter(),
-                keras_metrics.NumExamplesCounter(),
-                keras_metrics.NumTokensCounter(masked_tokens=[pad_token]),
-                keras_metrics.MaskedCategoricalAccuracy(masked_tokens=[pad_token]),
-            ]
-
-        element_spec = collections.OrderedDict(
-            x=tf.TensorSpec([None, 80], tf.int64),
-            y=tf.TensorSpec([None, 80], tf.int64))
-
-        return tff.learning.from_keras_model(
-            keras_model=model_builder(),
-            input_spec=element_spec,
-            loss=loss_builder(),
-            metrics=metrics_builder())
+    # def tff_shakespeare_model_fn_():
+    #     model_builder = functools.partial(
+    #         models.create_recurrent_model, vocab_size=VOCAB_SIZE, sequence_length=dataset_shakespeare.SEQUENCE_LENGTH)
+    #     loss_builder = functools.partial(
+    #         tf.keras.losses.SparseCategoricalCrossentropy, from_logits=True)
+    #
+    #     def metrics_builder():
+    #         """Returns a `list` of `tf.keras.metric.Metric` objects."""
+    #         pad_token, _, _, _ = dataset_shakespeare.get_special_tokens()
+    #
+    #         return [
+    #             keras_metrics.NumBatchesCounter(),
+    #             keras_metrics.NumExamplesCounter(),
+    #             keras_metrics.NumTokensCounter(masked_tokens=[pad_token]),
+    #             keras_metrics.MaskedCategoricalAccuracy(masked_tokens=[pad_token]),
+    #         ]
+    #
+    #     element_spec = collections.OrderedDict(
+    #         x=tf.TensorSpec([None, 80], tf.int64),
+    #         y=tf.TensorSpec([None, 80], tf.int64))
+    #
+    #     return tff.learning.from_keras_model(
+    #         keras_model=model_builder(),
+    #         input_spec=element_spec,
+    #         loss=loss_builder(),
+    #         metrics=metrics_builder())
 
     tff_model_fn = None
     if FLAGS.dataset == DATASET_FEMNIST:
