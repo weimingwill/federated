@@ -16,7 +16,7 @@ def load_data(data_dir, dataset):
         train_data_dir = os.path.join(data_dir, "train")
         test_data_dir = os.path.join(data_dir, "test")
     users, groups, train_data, test_data = read_data(train_data_dir, test_data_dir)
-    return CustomizedDataset(train_data, users), CustomizedDataset(test_data, users)
+    return CustomizedDataset(train_data, users, dataset), CustomizedDataset(test_data, users, dataset)
 
 
 def read_data(train_data_dir, test_data_dir):
@@ -63,8 +63,9 @@ def read_dir(data_dir):
 
 
 class CustomizedDataset(client_data.ClientData):
-    def __init__(self, data, clients):
+    def __init__(self, data, clients, dataset="femnist"):
         self._data = data
+        self._dataset = dataset
         self._client_ids = clients
         self._element_type_structure = tf.TensorSpec(dtype=tf.string, shape=())
 
@@ -73,11 +74,16 @@ class CustomizedDataset(client_data.ClientData):
 
         dic = collections.OrderedDict()
         for name, ds in self._data[client_id].items():
-            if name == 'x':
-                dic['pixels'] = tf.reshape(ds, [-1, 28, 28])
-
-            if name == 'y':
-                dic['label'] = ds[:]
+            if self._dataset == "femnist":
+                if name == 'x':
+                    dic['pixels'] = tf.reshape(ds, [-1, 28, 28])
+                if name == 'y':
+                    dic['label'] = ds[:]
+            elif self._dataset == "shakespeare":
+                if name == 'x':
+                    dic['snippets'] = ds[:]
+            else:
+                dic[name] = ds[:]
 
         return tf.data.Dataset.from_tensor_slices(dic)
 
