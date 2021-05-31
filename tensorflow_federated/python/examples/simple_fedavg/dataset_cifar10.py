@@ -32,6 +32,43 @@ TRAIN_EXAMPLES_PER_LABEL = 5000
 TEST_EXAMPLES_PER_LABEL = 1000
 
 
+class Cutout(object):
+    """
+    We only use one hole here
+    """
+    def __init__(self, length=16):
+        self.length = length
+
+    def __call__(self, img):
+        """
+        Args:
+            img (Tensor): Tensor image of size (H, W, C).
+        Returns:
+            Tensor: Image with n_holes of dimension length x length cut out of it.
+        """
+        h = img.shape[0]
+        w = img.shape[1]
+
+        mask = np.ones((h, w), np.float32)
+
+        y = np.random.randint(h)
+        x = np.random.randint(w)
+
+        y1 = np.clip(y - self.length // 2, 0, h)
+        y2 = np.clip(y + self.length // 2, 0, h)
+        x1 = np.clip(x - self.length // 2, 0, w)
+        x2 = np.clip(x + self.length // 2, 0, w)
+
+        mask[y1: y2, x1: x2] = 0.
+
+        mask = tf.convert_to_tensor(mask)
+        mask = tf.expand_dims(mask, axis=2)
+
+        mask = tf.broadcast_to(mask, img.shape)
+        img *= mask
+        return img
+
+
 def build_image_map(
     crop_shape: Union[tf.Tensor, Sequence[int]],
     distort: bool = False
@@ -57,7 +94,6 @@ def build_image_map(
   """
 
   if distort:
-
     def crop_fn(image):
       image = tf.image.random_crop(image, size=crop_shape)
       image = tf.image.random_flip_left_right(image)
@@ -73,6 +109,18 @@ def build_image_map(
     image = tf.cast(example['image'], tf.float32)
     image = crop_fn(image)
     image = tf.image.per_image_standardization(image)
+    image = Cutout()(image)
+    return (image, example['label'])
+
+  return image_map
+
+
+def build_test_image_map(
+) -> Callable[[tf.Tensor], Tuple[tf.Tensor, tf.Tensor]]:
+
+  def image_map(example):
+    image = tf.cast(example['image'], tf.float32)
+    image = tf.image.per_image_standardization(image)
     return (image, example['label'])
 
   return image_map
@@ -83,6 +131,7 @@ def create_preprocess_fn(
     batch_size: int,
     shuffle_buffer_size: int,
     crop_shape: Tuple[int, int, int] = CIFAR_SHAPE,
+    is_test=False,
     distort_image=False,
     num_parallel_calls: int = tf.data.experimental.AUTOTUNE) -> tff.Computation:
   """Creates a preprocessing function for CIFAR-10 client datasets.
@@ -114,17 +163,27 @@ def create_preprocess_fn(
       image=tff.TensorType(tf.uint8, shape=(32, 32, 3)),
       label=tff.TensorType(tf.int64))
 
-  image_map_fn = build_image_map(crop_shape, distort_image)
+  if is_test:
+    image_map_fn = build_test_image_map()
 
-  @tff.tf_computation(tff.SequenceType(feature_dtypes))
-  def preprocess_fn(dataset):
-    return (
-        dataset.shuffle(shuffle_buffer_size).repeat(num_epochs)
-        # We map before batching to ensure that the cropping occurs
-        # at an image level (eg. we do not perform the same crop on
-        # every image within a batch)
-        .map(image_map_fn,
-             num_parallel_calls=num_parallel_calls).batch(batch_size))
+    @tff.tf_computation(tff.SequenceType(feature_dtypes))
+    def preprocess_fn(dataset):
+        return (
+            dataset.repeat(num_epochs).map(image_map_fn,
+                                           num_parallel_calls=num_parallel_calls).batch(batch_size))
+
+  else:
+    image_map_fn = build_image_map(crop_shape, distort_image)
+
+    @tff.tf_computation(tff.SequenceType(feature_dtypes))
+    def preprocess_fn(dataset):
+        return (
+            dataset.shuffle(shuffle_buffer_size).repeat(num_epochs)
+              # We map before batching to ensure that the cropping occurs
+              # at an image level (eg. we do not perform the same crop on
+              # every image within a batch)
+              .map(image_map_fn,
+                   num_parallel_calls=num_parallel_calls).batch(batch_size))
 
   return preprocess_fn
 
@@ -196,6 +255,7 @@ def get_cifar10_federated_datasets(data_dir,
       batch_size=train_client_batch_size,
       shuffle_buffer_size=train_shuffle_buffer_size,
       crop_shape=crop_shape,
+      is_test=False,
       distort_image=not serializable)
   cifar_train = cifar_train.preprocess(train_preprocess_fn)
 
@@ -205,7 +265,8 @@ def get_cifar10_federated_datasets(data_dir,
       batch_size=test_client_batch_size,
       shuffle_buffer_size=test_shuffle_buffer_size,
       crop_shape=crop_shape,
-      distort_image=False)
+      is_test=True,
+      distort_image=not serializable)
   cifar_test = test_preprocess_fn(cifar_test)
 
   # test_preprocess_fn = create_preprocess_fn(
