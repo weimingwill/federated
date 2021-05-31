@@ -80,7 +80,7 @@ class KerasModelWrapper(object):
                      list(model_weights.non_trainable))
 
 
-def keras_evaluate(model, test_data, metric, dataset="femnist"):
+def keras_evaluate(model, test_data, metric):
   metric.reset_states()
   data_amount = 0
   for batch in test_data:

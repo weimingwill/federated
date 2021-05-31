@@ -32,7 +32,10 @@ from tensorflow_federated.python.examples.simple_fedavg import simple_fedavg_tf
 from tensorflow_federated.python.examples.simple_fedavg import simple_fedavg_tff
 from tensorflow_federated.python.examples.simple_fedavg.dataset_femnist import get_emnist_dataset
 from tensorflow_federated.python.examples.simple_fedavg.dataset_shakespeare import construct_character_level_datasets
-# from tensorflow_federated.python.examples.simple_fedavg import keras_metrics
+from tensorflow_federated.python.examples.simple_fedavg.dataset_cifar10 import get_cifar10_federated_datasets
+from tensorflow_federated.python.examples.simple_fedavg.resnet_models import create_resnet18
+from tensorflow_federated.python.examples.simple_fedavg import keras_metrics
+from tensorflow_federated.python.examples.optimization.shared import fed_avg_schedule
 
 # Training hyperparameters
 flags.DEFINE_integer('total_rounds', 256, 'Number of total training rounds.')
@@ -47,6 +50,7 @@ flags.DEFINE_integer('seed', 0, 'random seed.')
 flags.DEFINE_string('data_dir', "", 'customized data directory')
 flags.DEFINE_string('dataset', "", 'dataset name')
 flags.DEFINE_boolean('test_all', False, 'test all clients')
+flags.DEFINE_boolean('test_in_server', False, 'test in centralized server')
 
 # Optimizer configuration (this defines one or more flags per optimizer).
 flags.DEFINE_float('server_learning_rate', 1.0, 'Server learning rate.')
@@ -56,8 +60,13 @@ FLAGS = flags.FLAGS
 
 DATASET_FEMNIST = "femnist"
 DATASET_SHAKESPEARE = "shakespeare"
+DATASET_CIFAR10 = "cifar10"
 
 VOCAB_SIZE = len(dataset_shakespeare.CHAR_VOCAB) + 4
+
+CIFAR_SHAPE = (32, 32, 3)
+CROP_SHAPE = (32, 32, 3)
+NUM_CLASSES = 10
 
 
 def server_optimizer_fn():
@@ -78,6 +87,12 @@ def get_dataset():
                                                                    FLAGS.batch_size,
                                                                    FLAGS.client_epochs_per_round,
                                                                    FLAGS.test_batch_size)
+    elif FLAGS.dataset == DATASET_CIFAR10:
+        train_data, test_data = get_cifar10_federated_datasets(FLAGS.data_dir,
+                                                               FLAGS.batch_size,
+                                                               FLAGS.test_batch_size,
+                                                               FLAGS.client_epochs_per_round,
+                                                               crop_shape=CROP_SHAPE)
     return train_data, test_data
 
 
@@ -100,9 +115,17 @@ def get_model_fn():
             x=tf.TensorSpec([None, 80], tf.int64),
             y=tf.TensorSpec([None, 80], tf.int64))
         return simple_fedavg_tf.KerasModelWrapper(keras_model, element_spec, loss)
-        # return simple_fedavg_tf.KerasModelWrapper(keras_model, test_data.element_spec, loss)
 
-    # def tff_shakespeare_model_fn_():
+    def tff_cifar_model_fn():
+        """Constructs a fully initialized model for use in federated averaging."""
+        keras_model = create_resnet18(CROP_SHAPE, NUM_CLASSES)
+        loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+        element_spec = collections.OrderedDict(
+            x=tf.TensorSpec([None, 32, 32, 3], tf.float32),
+            y=tf.TensorSpec([None], tf.int64))
+        return simple_fedavg_tf.KerasModelWrapper(keras_model, element_spec, loss)
+
+    # def tff_shakespeare_model_fn():
     #     model_builder = functools.partial(
     #         models.create_recurrent_model, vocab_size=VOCAB_SIZE, sequence_length=dataset_shakespeare.SEQUENCE_LENGTH)
     #     loss_builder = functools.partial(
@@ -134,24 +157,20 @@ def get_model_fn():
         tff_model_fn = tff_emnist_model_fn
     elif FLAGS.dataset == DATASET_SHAKESPEARE:
         tff_model_fn = tff_shakespeare_model_fn
+    elif FLAGS.dataset == DATASET_CIFAR10:
+        tff_model_fn = tff_cifar_model_fn
     return tff_model_fn
 
 
 def get_metric():
     metric = tf.keras.metrics.SparseCategoricalAccuracy(name='test_accuracy')
+
+    if FLAGS.dataset == DATASET_SHAKESPEARE:
+        """Returns a `list` of `tf.keras.metric.Metric` objects."""
+        pad_token, _, _, _ = dataset_shakespeare.get_special_tokens()
+
+        metric = keras_metrics.MaskedCategoricalAccuracy(masked_tokens=[pad_token])
     return metric
-    # if FLAGS.dataset == DATASET_FEMNIST:
-    #     return metric
-    # elif FLAGS.dataset == DATASET_SHAKESPEARE:
-    #     """Returns a `list` of `tf.keras.metric.Metric` objects."""
-    #     pad_token, _, _, _ = dataset_shakespeare.get_special_tokens()
-    #
-    #     return [
-    #         keras_metrics.NumBatchesCounter(),
-    #         keras_metrics.NumExamplesCounter(),
-    #         keras_metrics.NumTokensCounter(masked_tokens=[pad_token]),
-    #         keras_metrics.MaskedCategoricalAccuracy(masked_tokens=[pad_token]),
-    #     ]
 
 
 def main(argv):
@@ -191,8 +210,6 @@ def main(argv):
     cumulative_accuracies = []
     cumulative_training_times = []
 
-    print("test data", test_data)
-
     for round_num in range(FLAGS.total_rounds):
         np.random.seed(round_num)
         sampled_clients = np.random.choice(
@@ -205,27 +222,34 @@ def main(argv):
             for client in sampled_clients
         ]
 
-        clients_to_test = sampled_clients
-        if FLAGS.test_all:
-            clients_to_test = test_data.client_ids
+        sampled_test_data = test_data
+        if not FLAGS.test_in_server:
+            clients_to_test = sampled_clients
+            if FLAGS.test_all:
+                clients_to_test = test_data.client_ids
 
-        sampled_test_data = [
-            test_data.create_tf_dataset_for_client(client)
-            for client in clients_to_test
-        ]
+            sampled_test_data = [
+                test_data.create_tf_dataset_for_client(client)
+                for client in clients_to_test
+            ]
 
-        server_state, train_metrics = iterative_process.next(
-            server_state, sampled_train_data)
+        server_state, train_metrics = iterative_process.next(server_state, sampled_train_data)
         print(f'Round {round_num} training loss: {train_metrics}')
         if round_num % FLAGS.rounds_per_eval == 0:
+            # assign_weights_fn = fed_avg_schedule.ServerState.assign_weights_to_keras_model
+            # assign_weights_fn(server_state.model_weights, model)
             model.from_weights(server_state.model_weights)
             weights = []
             accuracies = []
-            for data in sampled_test_data:
-                accuracy, data_amount = simple_fedavg_tf.keras_evaluate(model.keras_model, data, metric, FLAGS.dataset)
-                accuracies.append(accuracy)
-                weights.append(data_amount)
-            accuracy = np.average(accuracies, weights=weights)
+            if FLAGS.test_in_server:
+                accuracy, _ = simple_fedavg_tf.keras_evaluate(model.keras_model, sampled_test_data, metric)
+                accuracy = accuracy.numpy()
+            else:
+                for data in sampled_test_data:
+                    accuracy, data_amount = simple_fedavg_tf.keras_evaluate(model.keras_model, data, metric)
+                    accuracies.append(accuracy)
+                    weights.append(data_amount)
+                accuracy = np.average(accuracies, weights=weights)
             # accuracy = simple_fedavg_tf.keras_evaluate(model.keras_model, test_data, metric)
             print(f'Round {round_num} validation accuracy: {accuracy * 100.0}')
             cumulative_accuracies.append(accuracy * 100.0)

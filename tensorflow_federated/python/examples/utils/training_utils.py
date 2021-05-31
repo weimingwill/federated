@@ -45,7 +45,10 @@ def convert_to_tuple_dataset(dataset):
     (<features>, <labels>).
 
   """
-  example_structure = dataset.element_spec
+  example_structure = getattr(dataset, "element_spec", None)
+  if example_structure is None:
+      example_structure = dataset.element_type_structure
+  # example_structure = dataset.element_spec
   if isinstance(example_structure, collections.Mapping):
     # We assume the mapping has `x` and `y` keys.
     convert_map_to_tuple = lambda example: (example['x'], example['y'])
@@ -108,7 +111,9 @@ def build_evaluate_fn(eval_dataset, model_builder, loss_builder,
         metrics=metrics_builder())
     return model
 
-  eval_tuple_dataset = convert_to_tuple_dataset(eval_dataset)
+  # print("eval dataset", eval_dataset)
+  # eval_tuple_dataset = convert_to_tuple_dataset(eval_dataset)
+  eval_tuple_dataset = eval_dataset
 
   def evaluate_fn(reference_model):
     """Evaluation function to be used during training."""

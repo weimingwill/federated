@@ -37,7 +37,7 @@ import attr
 import tensorflow as tf
 import tensorflow_federated as tff
 
-from tensorflow_federated.python.research.utils import adapters
+from tensorflow_federated.python.examples.utils import adapters
 from tensorflow_federated.python.tensorflow_libs import tensor_utils
 
 # Convenience type aliases.
@@ -290,7 +290,8 @@ class FederatedAveragingProcessAdapter(adapters.IterativeProcessPythonAdapter):
   ) -> adapters.IterationResult:
     state, metrics = self._iterative_process.next(state, data)
     state = ServerState.from_tff_result(state)
-    metrics = metrics._asdict(recursive=True)
+    if not isinstance(metrics, collections.OrderedDict):
+        metrics = metrics._asdict(recursive=True)
     outputs = None
     return adapters.IterationResult(state, metrics, outputs)
 
@@ -411,7 +412,8 @@ def build_fed_avg_process(
 
     aggregated_outputs = dummy_model.federated_output_computation(
         client_outputs.model_output)
-    if aggregated_outputs.type_signature.is_tuple():
+    # if aggregated_outputs.type_signature.is_tuple():
+    if isinstance(aggregated_outputs.type_signature, tff.StructType):
       aggregated_outputs = tff.federated_zip(aggregated_outputs)
 
     return server_state, aggregated_outputs
