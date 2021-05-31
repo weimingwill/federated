@@ -23,19 +23,17 @@ import numpy as np
 import tensorflow as tf
 from absl import app
 from absl import flags
-import functools
 
 import tensorflow_federated as tff
 from tensorflow_federated.python.examples.simple_fedavg import dataset_shakespeare
+from tensorflow_federated.python.examples.simple_fedavg import keras_metrics
 from tensorflow_federated.python.examples.simple_fedavg import models
 from tensorflow_federated.python.examples.simple_fedavg import simple_fedavg_tf
 from tensorflow_federated.python.examples.simple_fedavg import simple_fedavg_tff
+from tensorflow_federated.python.examples.simple_fedavg.dataset_cifar10 import get_cifar10_federated_datasets
 from tensorflow_federated.python.examples.simple_fedavg.dataset_femnist import get_emnist_dataset
 from tensorflow_federated.python.examples.simple_fedavg.dataset_shakespeare import construct_character_level_datasets
-from tensorflow_federated.python.examples.simple_fedavg.dataset_cifar10 import get_cifar10_federated_datasets
 from tensorflow_federated.python.examples.simple_fedavg.resnet_models import create_resnet18
-from tensorflow_federated.python.examples.simple_fedavg import keras_metrics
-from tensorflow_federated.python.examples.optimization.shared import fed_avg_schedule
 
 # Training hyperparameters
 flags.DEFINE_integer('total_rounds', 256, 'Number of total training rounds.')
@@ -236,8 +234,6 @@ def main(argv):
         server_state, train_metrics = iterative_process.next(server_state, sampled_train_data)
         print(f'Round {round_num} training loss: {train_metrics}')
         if round_num % FLAGS.rounds_per_eval == 0:
-            # assign_weights_fn = fed_avg_schedule.ServerState.assign_weights_to_keras_model
-            # assign_weights_fn(server_state.model_weights, model)
             model.from_weights(server_state.model_weights)
             weights = []
             accuracies = []
