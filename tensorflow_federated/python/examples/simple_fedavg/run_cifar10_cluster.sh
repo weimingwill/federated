@@ -8,7 +8,7 @@ data_dir=/mnt/lustre/$(whoami)/projects/easyfl/easyfl/datasets/data
 
 export PYTHONPATH=$PYTHONPATH:${root_dir}
 
-srun -u --partition=innova --job-name=femnist \
+srun -u --partition=innova --job-name=cifar \
     -n1 --gres=gpu:1 --ntasks-per-node=1 \
     python -u ${root_dir}/tensorflow_federated/python/examples/simple_fedavg/fedavg_main.py \
         --data_dir ${data_dir}/cifar10/cifar10_iid_10_10_1_0.5_0/ \
