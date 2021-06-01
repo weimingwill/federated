@@ -109,7 +109,7 @@ def build_image_map(
     image = tf.cast(example['image'], tf.float32)
     image = crop_fn(image)
     image = tf.image.per_image_standardization(image)
-    image = Cutout()(image)
+    # image = Cutout()(image)  # cutout only cuts out a static location, so comment it out.
     return (image, example['label'])
 
   return image_map
