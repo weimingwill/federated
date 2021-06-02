@@ -49,6 +49,7 @@ flags.DEFINE_string('data_dir', "", 'customized data directory')
 flags.DEFINE_string('dataset', "", 'dataset name')
 flags.DEFINE_boolean('test_all', False, 'test all clients')
 flags.DEFINE_boolean('test_in_server', False, 'test in centralized server')
+flags.DEFINE_boolean('use_cpu', False, 'whether use gpu for training')
 
 # Optimizer configuration (this defines one or more flags per optimizer).
 flags.DEFINE_float('server_learning_rate', 1.0, 'Server learning rate.')
@@ -188,8 +189,13 @@ def main(argv):
     # potential out of memory issue when a large number of clients is sampled per
     # round. The client devices below can be an empty list when no GPU could be
     # detected by TF.
-    client_devices = tf.config.list_logical_devices('GPU')
-    server_device = tf.config.list_logical_devices('CPU')[0]
+    if FLAGS.use_cpu:
+        client_devices = tf.config.list_logical_devices('CPU')
+        server_device = tf.config.list_logical_devices('CPU')[0]
+    else:
+        client_devices = tf.config.list_logical_devices('GPU')
+        server_device = tf.config.list_logical_devices('CPU')[0]
+
     tff.backends.native.set_local_execution_context(
         server_tf_device=server_device, client_tf_devices=client_devices)
 
