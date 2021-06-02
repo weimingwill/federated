@@ -189,15 +189,11 @@ def main(argv):
     # potential out of memory issue when a large number of clients is sampled per
     # round. The client devices below can be an empty list when no GPU could be
     # detected by TF.
-    if FLAGS.use_cpu:
-        client_devices = tf.config.list_logical_devices('CPU')
-        server_device = tf.config.list_logical_devices('CPU')[0]
-    else:
+    if not FLAGS.use_cpu:
         client_devices = tf.config.list_logical_devices('GPU')
         server_device = tf.config.list_logical_devices('CPU')[0]
-
-    tff.backends.native.set_local_execution_context(
-        server_tf_device=server_device, client_tf_devices=client_devices)
+        tff.backends.native.set_local_execution_context(
+            server_tf_device=server_device, client_tf_devices=client_devices)
 
     train_data, test_data = get_dataset()
 
