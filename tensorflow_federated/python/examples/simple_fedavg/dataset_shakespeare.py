@@ -161,7 +161,7 @@ def construct_character_level_datasets(data_dir,
             convert_snippets_to_character_sequence_examples,
             batch_size=test_batch_size,
             epochs=1,
-            shuffle_buffer_size=shuffle_buffer_size,
+            shuffle_buffer_size=-1,
             sequence_length=sequence_length,
             max_batches_per_client=max_batches_per_client))
 
