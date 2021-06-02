@@ -194,7 +194,7 @@ def main(argv):
     if FLAGS.gpu == 0:
         client_devices = tf.config.list_logical_devices('CPU')
     elif FLAGS.gpu == 1:
-        client_devices = tf.config.list_logical_devices('GPU')[0]
+        client_devices = [tf.config.list_logical_devices('GPU')[0]]
     else:
         client_devices = tf.config.list_logical_devices('GPU')
 
