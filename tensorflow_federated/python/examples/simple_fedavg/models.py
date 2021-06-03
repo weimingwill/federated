@@ -71,21 +71,26 @@ def create_recurrent_model(vocab_size: int,
     Returns:
       An uncompiled `tf.keras.Model`.
     """
+    init_range = 0.1
+
     model = tf.keras.Sequential()
     model.add(
         tf.keras.layers.Embedding(
             input_dim=vocab_size,
             input_length=sequence_length,
             output_dim=8,
-            mask_zero=mask_zero))
-    initializer = tf.keras.initializers.RandomUniform(minval=-1., maxval=1.)
+            mask_zero=mask_zero,
+            embeddings_initializer=tf.keras.initializers.RandomUniform(minval=-init_range, maxval=init_range)))
     lstm_layer_builder = functools.partial(
         tf.keras.layers.LSTM,
         units=256,
-        kernel_initializer=initializer,
+        recurrent_activation='sigmoid',
+        kernel_initializer=tf.keras.initializers.RandomUniform(minval=-init_range, maxval=init_range),
         return_sequences=True,
         stateful=False)
     model.add(lstm_layer_builder())
     model.add(lstm_layer_builder())
-    model.add(tf.keras.layers.Dense(vocab_size))  # Note: logits, no softmax.
+    model.add(tf.keras.layers.Dense(vocab_size,
+                                    kernel_initializer=tf.keras.initializers.RandomUniform(minval=-init_range, maxval=init_range),
+                                    bias_initializer=tf.keras.initializers.Zeros()))  # Note: logits, no softmax.
     return model
