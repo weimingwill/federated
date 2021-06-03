@@ -78,10 +78,11 @@ def create_recurrent_model(vocab_size: int,
             input_length=sequence_length,
             output_dim=8,
             mask_zero=mask_zero))
+    initializer = tf.keras.initializers.RandomUniform(minval=-1., maxval=1.)
     lstm_layer_builder = functools.partial(
         tf.keras.layers.LSTM,
         units=256,
-        kernel_initializer='he_normal',
+        kernel_initializer=initializer,
         return_sequences=True,
         stateful=False)
     model.add(lstm_layer_builder())
