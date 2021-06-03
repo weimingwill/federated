@@ -7,6 +7,9 @@ root_dir=/mnt/lustre/$(whoami)/projects/federated
 data_dir=/mnt/lustre/$(whoami)/projects/easyfl/easyfl/datasets/data
 
 export PYTHONPATH=$PYTHONPATH:${root_dir}
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+export PATH="/mnt/lustre/share/cuda-9.0/bin:$PATH"
+export LD_LIBRARY_PATH="/mnt/lustre/share/cuda-9.0/lib64:$LD_LIBRARY_PATH"
 
 srun -u --partition=innova --job-name=shakespeare8 \
     -n8 --gres=gpu:8 --ntasks-per-node=8 \

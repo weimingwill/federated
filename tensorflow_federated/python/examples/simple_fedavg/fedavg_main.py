@@ -23,6 +23,7 @@ import numpy as np
 import tensorflow as tf
 from absl import app
 from absl import flags
+import os
 
 import tensorflow_federated as tff
 from tensorflow_federated.python.examples.simple_fedavg import dataset_shakespeare
@@ -173,6 +174,10 @@ def get_metric():
 
 
 def main(argv):
+    if FLAGS.gpu == 0:
+        print("Use CPU")
+        os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
     start_time = time.time()
 
     np.random.seed(FLAGS.seed)
@@ -193,6 +198,7 @@ def main(argv):
 
     if FLAGS.gpu == 0:
         client_devices = tf.config.list_logical_devices('CPU')
+        print("client_devices", client_devices)
     elif FLAGS.gpu == 1:
         client_devices = [tf.config.list_logical_devices('GPU')[0]]
     else:
