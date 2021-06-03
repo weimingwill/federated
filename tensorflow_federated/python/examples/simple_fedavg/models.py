@@ -81,15 +81,26 @@ def create_recurrent_model(vocab_size: int,
             output_dim=8,
             mask_zero=mask_zero,
             embeddings_initializer=tf.keras.initializers.RandomUniform(minval=-init_range, maxval=init_range)))
-    lstm_layer_builder = functools.partial(
-        tf.keras.layers.LSTM,
-        units=256,
-        recurrent_activation='sigmoid',
-        kernel_initializer=tf.keras.initializers.RandomUniform(minval=-init_range, maxval=init_range),
-        return_sequences=True,
-        stateful=False)
-    model.add(lstm_layer_builder())
-    model.add(lstm_layer_builder())
+    model.add(
+        tf.keras.layers.RNN(
+            [tf.keras.layers.LSTMCell(
+                units=256,
+                kernel_initializer=tf.keras.initializers.RandomUniform(minval=-init_range, maxval=init_range))
+                for _ in range(2)],
+            return_sequences=True,
+        )
+    )
+    # lstm_layer_builder = functools.partial(
+    #     tf.keras.layers.LSTM,
+    #     units=256,
+    #     recurrent_activation='sigmoid',
+    #     kernel_initializer=tf.keras.initializers.RandomUniform(minval=-init_range, maxval=init_range),
+    #     return_sequences=True,
+    #     recurrent_dropout=0,
+    #     unroll=True,
+    #     stateful=False)
+    # model.add(lstm_layer_builder())
+    # model.add(lstm_layer_builder())
     model.add(tf.keras.layers.Dense(vocab_size,
                                     kernel_initializer=tf.keras.initializers.RandomUniform(minval=-init_range, maxval=init_range),
                                     bias_initializer=tf.keras.initializers.Zeros()))  # Note: logits, no softmax.
