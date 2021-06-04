@@ -119,7 +119,7 @@ def get_model_fn():
     def tff_cifar_model_fn():
         """Constructs a fully initialized model for use in federated averaging."""
         keras_model = create_resnet18(CROP_SHAPE, NUM_CLASSES)
-        loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+        loss = tf.keras.losses.SparseCategoricalCrossentropy()
         element_spec = collections.OrderedDict(
             x=tf.TensorSpec([None, 32, 32, 3], tf.float32),
             y=tf.TensorSpec([None], tf.int64))
