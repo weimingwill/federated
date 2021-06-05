@@ -169,7 +169,7 @@ def get_metric():
         """Returns a `list` of `tf.keras.metric.Metric` objects."""
         pad_token, _, _, _ = dataset_shakespeare.get_special_tokens()
 
-        metric = keras_metrics.MaskedCategoricalAccuracy(masked_tokens=[pad_token])
+        metric = keras_metrics.MaskedCategoricalAccuracy(masked_tokens=[pad_token], name='test_accuracy')
     return metric
 
 
