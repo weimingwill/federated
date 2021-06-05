@@ -95,7 +95,7 @@ def build_image_map(
   h, w, _ = crop_shape
   if distort:
     def crop_fn(image):
-      image = tf.image.resize_with_crop_or_pad(image, h+4, w+4)
+      image = tf.image.resize_with_crop_or_pad(image, h+8, w+8)
       image = tf.image.random_crop(image, size=crop_shape)
       image = tf.image.random_flip_left_right(image)
       return image
