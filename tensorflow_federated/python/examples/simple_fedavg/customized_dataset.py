@@ -4,8 +4,15 @@ import os
 from collections import defaultdict
 
 import tensorflow as tf
+import pickle
 
 from tensorflow_federated.python.simulation import client_data
+
+
+def load_dict(filename):
+    with open(filename, 'rb') as f:
+        dic = pickle.load(f)
+    return dic
 
 
 def load_data(data_dir, dataset):
@@ -15,11 +22,12 @@ def load_data(data_dir, dataset):
     else:
         train_data_dir = os.path.join(data_dir, "train")
         test_data_dir = os.path.join(data_dir, "test")
-    users, groups, train_data, test_data = read_data(train_data_dir, test_data_dir)
-    return CustomizedDataset(train_data, users), CustomizedDataset(test_data, users)
+
+    users, train_data, test_data = read_data(train_data_dir, test_data_dir, dataset)
+    return CustomizedDataset(train_data, users, dataset), CustomizedDataset(test_data, users, dataset)
 
 
-def read_data(train_data_dir, test_data_dir):
+def read_data(train_data_dir, test_data_dir, dataset):
     '''parses data in given train and test data directories
 
     assumes:
@@ -33,13 +41,15 @@ def read_data(train_data_dir, test_data_dir):
         train_data: dictionary of train data
         test_data: dictionary of test data
     '''
-    train_clients, train_groups, train_data = read_dir(train_data_dir)
-    test_clients, test_groups, test_data = read_dir(test_data_dir)
 
-    assert train_clients == test_clients
-    assert train_groups == test_groups
+    if dataset == "cifar10":
+        train_data = load_dict(train_data_dir)
+        test_data = load_dict(test_data_dir)
+        return list(train_data.keys()), train_data, test_data
+    train_clients, _, train_data = read_dir(train_data_dir)
+    test_clients, _, test_data = read_dir(test_data_dir)
 
-    return train_clients, train_groups, train_data, test_data
+    return train_clients, train_data, test_data
 
 
 def read_dir(data_dir):
@@ -63,8 +73,9 @@ def read_dir(data_dir):
 
 
 class CustomizedDataset(client_data.ClientData):
-    def __init__(self, data, clients):
+    def __init__(self, data, clients, dataset="femnist"):
         self._data = data
+        self._dataset = dataset
         self._client_ids = clients
         self._element_type_structure = tf.TensorSpec(dtype=tf.string, shape=())
 
@@ -73,11 +84,21 @@ class CustomizedDataset(client_data.ClientData):
 
         dic = collections.OrderedDict()
         for name, ds in self._data[client_id].items():
-            if name == 'x':
-                dic['pixels'] = tf.reshape(ds, [-1, 28, 28])
-
-            if name == 'y':
-                dic['label'] = ds[:]
+            if self._dataset == "femnist":
+                if name == 'x':
+                    dic['pixels'] = tf.reshape(ds, [-1, 28, 28])
+                if name == 'y':
+                    dic['label'] = ds[:]
+            elif self._dataset == "shakespeare":
+                if name == 'x':
+                    dic['snippets'] = ds[:]
+            elif self._dataset == "cifar10":
+                if name == "x":
+                    dic["image"] = ds[:]
+                if name == "y":
+                    dic["label"] = ds[:]
+            else:
+                dic[name] = ds[:]
 
         return tf.data.Dataset.from_tensor_slices(dic)
 
@@ -88,6 +109,19 @@ class CustomizedDataset(client_data.ClientData):
     @property
     def client_ids(self):
         return self._client_ids
+
+    def create_tf_dataset_from_all_clients(self, seed=None):
+        dic = collections.OrderedDict()
+        for name, ds in self._data.items():
+            if self._dataset == "cifar10":
+                if name == "x":
+                    dic["image"] = ds[:]
+                if name == "y":
+                    dic["label"] = tf.cast(ds[:], tf.int64)
+        return tf.data.Dataset.from_tensor_slices(dic)
+        # example_dataset = nested_dataset.flat_map(lambda x: x)
+        # return example_dataset
+
 
     def create_tf_dataset_for_client(self, client_id: str):
         """Creates a new `tf.data.Dataset` containing the client training examples.

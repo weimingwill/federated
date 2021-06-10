@@ -41,6 +41,7 @@ flags.DEFINE_integer('batch_size', 16, 'Batch size used on the client.')
 flags.DEFINE_integer('test_batch_size', 128, 'Minibatch size of test data.')
 flags.DEFINE_integer('seed', 0, 'random seed.')
 flags.DEFINE_string('data_dir', "", 'customized data directory')
+flags.DEFINE_boolean('test_all', False, 'test all clients')
 
 # Optimizer configuration (this defines one or more flags per optimizer).
 flags.DEFINE_float('server_learning_rate', 1.0, 'Server learning rate.')
@@ -127,6 +128,7 @@ def create_original_fedavg_cnn_model(only_digits=True):
   """
   data_format = 'channels_last'
   input_shape = [28, 28, 1]
+  init_range = 0.1
 
   max_pool = functools.partial(
       tf.keras.layers.MaxPooling2D,
@@ -138,7 +140,9 @@ def create_original_fedavg_cnn_model(only_digits=True):
       kernel_size=5,
       padding='same',
       data_format=data_format,
-      activation=tf.nn.relu)
+      activation=tf.nn.relu,
+      kernel_initializer=tf.random_uniform_initializer(-init_range, init_range),
+      bias_initializer=tf.zeros_initializer())
 
   model = tf.keras.models.Sequential([
       conv2d(filters=32, input_shape=input_shape),
@@ -146,8 +150,13 @@ def create_original_fedavg_cnn_model(only_digits=True):
       conv2d(filters=64),
       max_pool(),
       tf.keras.layers.Flatten(),
-      tf.keras.layers.Dense(2048, activation=tf.nn.relu),
-      tf.keras.layers.Dense(10 if only_digits else 62),
+
+      tf.keras.layers.Dense(2048, activation=tf.nn.relu,
+                            kernel_initializer=tf.random_uniform_initializer(-init_range, init_range),
+                            bias_initializer=tf.zeros_initializer()),
+      tf.keras.layers.Dense(10 if only_digits else 62,
+                            kernel_initializer=tf.random_uniform_initializer(-init_range, init_range),
+                            bias_initializer=tf.zeros_initializer()),
   ])
 
   return model
@@ -208,11 +217,6 @@ def main(argv):
   cumulative_accuracies = []
   cumulative_training_times = []
 
-  sampled_test_data = [
-      test_data.create_tf_dataset_for_client(client)
-      for client in test_data.client_ids
-  ]
-
   for round_num in range(FLAGS.total_rounds):
     np.random.seed(round_num)
     sampled_clients = np.random.choice(
@@ -220,11 +224,18 @@ def main(argv):
         size=FLAGS.train_clients_per_round,
         replace=False)
 
-    print("Round {} sampled clients: {}".format(round_num, sampled_clients))
-
     sampled_train_data = [
         train_data.create_tf_dataset_for_client(client)
         for client in sampled_clients
+    ]
+
+    clients_to_test = sampled_clients
+    if FLAGS.test_all:
+        clients_to_test = test_data.client_ids
+
+    sampled_test_data = [
+        test_data.create_tf_dataset_for_client(client)
+        for client in clients_to_test
     ]
 
     server_state, train_metrics = iterative_process.next(

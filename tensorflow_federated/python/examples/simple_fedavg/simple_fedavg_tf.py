@@ -84,9 +84,15 @@ def keras_evaluate(model, test_data, metric):
   metric.reset_states()
   data_amount = 0
   for batch in test_data:
-    data_amount += len(batch['x'])
-    preds = model(batch['x'], training=False)
-    metric.update_state(y_true=batch['y'], y_pred=preds)
+    if isinstance(batch, tuple):
+      x = batch[0]
+      y = batch[1]
+    else:
+      x = batch['x']
+      y = batch['y']
+    data_amount += len(x)
+    preds = model(x, training=False)
+    metric.update_state(y_true=y, y_pred=preds)
   return metric.result(), data_amount
 
 
