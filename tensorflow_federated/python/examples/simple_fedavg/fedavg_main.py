@@ -62,7 +62,7 @@ DATASET_FEMNIST = "femnist"
 DATASET_SHAKESPEARE = "shakespeare"
 DATASET_CIFAR10 = "cifar10"
 
-VOCAB_SIZE = len(dataset_shakespeare.CHAR_VOCAB) + 4
+VOCAB_SIZE = len(dataset_shakespeare.CHAR_VOCAB) + 4  # 90
 
 CIFAR_SHAPE = (32, 32, 3)
 CROP_SHAPE = (32, 32, 3)
@@ -222,6 +222,33 @@ def main(argv):
     cumulative_accuracies = []
     cumulative_training_times = []
 
+    def test():
+        sampled_test_data = test_data
+        if not FLAGS.test_in_server and FLAGS.test_all:
+            sampled_test_data = [
+                test_data.create_tf_dataset_for_client(client)
+                for client in test_data.client_ids
+            ]
+
+        model.from_weights(server_state.model_weights)
+        weights = []
+        accuracies = []
+        if FLAGS.test_in_server:
+            accuracy, _ = simple_fedavg_tf.keras_evaluate(model.keras_model, sampled_test_data, metric)
+            accuracy = accuracy.numpy()
+        else:
+            for data in sampled_test_data:
+                accuracy, data_amount = simple_fedavg_tf.keras_evaluate(model.keras_model, data, metric)
+                accuracies.append(accuracy)
+                weights.append(data_amount)
+            accuracy = np.average(accuracies, weights=weights)
+        # accuracy = simple_fedavg_tf.keras_evaluate(model.keras_model, test_data, metric)
+        print(f'Round 0 validation accuracy: {accuracy * 100.0}')
+        cumulative_accuracies.append(accuracy * 100.0)
+        cumulative_training_times.append(time.time() - start_time)
+
+    test()
+
     for round_num in range(FLAGS.total_rounds):
         np.random.seed(round_num)
         sampled_clients = np.random.choice(
@@ -246,7 +273,7 @@ def main(argv):
             ]
 
         server_state, train_metrics = iterative_process.next(server_state, sampled_train_data)
-        print(f'Round {round_num} training loss: {train_metrics}')
+        print(f'Round {round_num + 1} training loss: {train_metrics}')
         if round_num % FLAGS.rounds_per_eval == 0:
             model.from_weights(server_state.model_weights)
             weights = []
@@ -261,7 +288,7 @@ def main(argv):
                     weights.append(data_amount)
                 accuracy = np.average(accuracies, weights=weights)
             # accuracy = simple_fedavg_tf.keras_evaluate(model.keras_model, test_data, metric)
-            print(f'Round {round_num} validation accuracy: {accuracy * 100.0}')
+            print(f'Round {round_num + 1} validation accuracy: {accuracy * 100.0}')
             cumulative_accuracies.append(accuracy * 100.0)
             cumulative_training_times.append(time.time() - start_time)
     print("Cumulative accuracies:", cumulative_accuracies)
