@@ -24,6 +24,8 @@ import tensorflow as tf
 from absl import app
 from absl import flags
 import os
+import re
+from gpustat import GPUStat
 
 import tensorflow_federated as tff
 from tensorflow_federated.python.examples.simple_fedavg import dataset_shakespeare
@@ -174,11 +176,19 @@ def get_metric():
 
 
 def main(argv):
+    rank, local_rank, world_size, host_addr = setup()
+    if local_rank != 0:
+        return
+
+    print("host addr", host_addr)
+
+    gpustat = GPUStat()
+    gpustat.open(1)
+
     if FLAGS.gpu == 0:
         print("Use CPU")
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
-    start_time = time.time()
 
     np.random.seed(FLAGS.seed)
     tf.random.set_seed(FLAGS.seed)
@@ -222,6 +232,7 @@ def main(argv):
     cumulative_accuracies = []
     cumulative_training_times = []
 
+    start_time = time.time()
     for round_num in range(FLAGS.total_rounds):
         np.random.seed(round_num)
         sampled_clients = np.random.choice(
@@ -268,6 +279,33 @@ def main(argv):
     print("Cumulative training times:", cumulative_training_times)
     print("Total training time:", time.time() - start_time)
 
+    gpustat.all_stat()
+    gpustat.summary()
+    gpustat.close()
+
+
+def setup(port=23344):
+    try:
+        rank = int(os.environ['SLURM_PROCID'])
+        local_rank = int(os.environ['SLURM_LOCALID'])
+        world_size = int(os.environ['SLURM_NTASKS'])
+        host = get_ip(os.environ['SLURM_STEP_NODELIST'])
+        host_addr = 'tcp://' + host + ':' + str(port)
+    except KeyError:
+        return 0, 0, 0, ""
+    return rank, local_rank, world_size, host_addr
+
+
+def get_ip(node_list):
+    if "[" not in node_list:
+        return node_list
+    r = re.search(r'([\w-]*)\[(\d*)[-+,+\d]*\]', node_list)
+    if not r:
+        return
+    base, node = r.groups()
+    return base + node
+
 
 if __name__ == '__main__':
+    os.environ["CUDA_VISIBLE_DEVICES"]="0"
     app.run(main)

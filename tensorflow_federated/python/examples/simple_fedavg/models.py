@@ -81,12 +81,14 @@ def create_recurrent_model(vocab_size: int,
             output_dim=8,
             mask_zero=mask_zero,
             embeddings_initializer=tf.keras.initializers.RandomUniform(minval=-init_range, maxval=init_range)))
-    model.add(
-        tf.keras.layers.RNN(
-            [tf.keras.layers.LSTMCell(units=256) for _ in range(2)],
-            return_sequences=True,
-        )
-    )
+   # model.add(
+    #    tf.keras.layers.RNN(
+    #        [tf.keras.layers.LSTMCell(units=256) for _ in range(2)],
+    #        return_sequences=True,
+    #    )
+   # )
+    model.add(tf.keras.layers.LSTM(256, return_sequences=True))
+    model.add(tf.keras.layers.LSTM(256, return_sequences=True))
     # lstm_layer_builder = functools.partial(
     #     tf.keras.layers.LSTM,
     #     units=256,
