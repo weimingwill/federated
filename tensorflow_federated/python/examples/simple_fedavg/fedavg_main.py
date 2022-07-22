@@ -64,7 +64,7 @@ DATASET_FEMNIST = "femnist"
 DATASET_SHAKESPEARE = "shakespeare"
 DATASET_CIFAR10 = "cifar10"
 
-VOCAB_SIZE = len(dataset_shakespeare.CHAR_VOCAB) + 4
+VOCAB_SIZE = len(dataset_shakespeare.CHAR_VOCAB) + 4  # 90
 
 CIFAR_SHAPE = (32, 32, 3)
 CROP_SHAPE = (32, 32, 3)
@@ -257,7 +257,7 @@ def main(argv):
             ]
 
         server_state, train_metrics = iterative_process.next(server_state, sampled_train_data)
-        print(f'Round {round_num} training loss: {train_metrics}')
+        print(f'Round {round_num + 1} training loss: {train_metrics}')
         if round_num % FLAGS.rounds_per_eval == 0:
             model.from_weights(server_state.model_weights)
             weights = []
@@ -272,7 +272,7 @@ def main(argv):
                     weights.append(data_amount)
                 accuracy = np.average(accuracies, weights=weights)
             # accuracy = simple_fedavg_tf.keras_evaluate(model.keras_model, test_data, metric)
-            print(f'Round {round_num} validation accuracy: {accuracy * 100.0}')
+            print(f'Round {round_num + 1} validation accuracy: {accuracy * 100.0}')
             cumulative_accuracies.append(accuracy * 100.0)
             cumulative_training_times.append(time.time() - start_time)
     print("Cumulative accuracies:", cumulative_accuracies)
