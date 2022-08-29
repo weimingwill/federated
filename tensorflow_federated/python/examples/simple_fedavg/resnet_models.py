@@ -293,7 +293,7 @@ def create_resnet(input_shape,
 def create_resnet18(input_shape, num_classes, norm='group'):
   """ResNet with 18 layers and basic residual blocks."""
   return create_resnet(
-      input_shape, num_classes, 'basic', repetitions=[2, 2, 2, 2], norm=norm)
+      input_shape, num_classes, 'basic', repetitions=[2, 2, 2, 2], norm=norm, initial_strides=(1, 1), initial_kernel_size=(3, 3), initial_pooling='None')
 
 
 def create_resnet34(input_shape, num_classes, norm='group'):

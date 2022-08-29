@@ -72,7 +72,8 @@ def create_recurrent_model(vocab_size: int,
       An uncompiled `tf.keras.Model`.
     """
     init_range = 0.1
-
+    # tf.config.run_functions_eagerly(True)
+    print("context eager", tf.python.eager.context.executing_eagerly())
     model = tf.keras.Sequential()
     model.add(
         tf.keras.layers.Embedding(
@@ -81,12 +82,14 @@ def create_recurrent_model(vocab_size: int,
             output_dim=8,
             mask_zero=mask_zero,
             embeddings_initializer=tf.keras.initializers.RandomUniform(minval=-init_range, maxval=init_range)))
-    model.add(
-        tf.keras.layers.RNN(
-            [tf.keras.layers.LSTMCell(units=256) for _ in range(2)],
-            return_sequences=True,
-        )
-    )
+    model.add(tf.keras.layers.LSTM(256, return_sequences=True))
+    model.add(tf.keras.layers.LSTM(256, return_sequences=True))
+    # model.add(
+    #     tf.keras.layers.RNN(
+    #         [tf.keras.layers.LSTMCell(units=256) for _ in range(2)],
+    #         return_sequences=True,
+    #     )
+    # )
     # lstm_layer_builder = functools.partial(
     #     tf.keras.layers.LSTM,
     #     units=256,

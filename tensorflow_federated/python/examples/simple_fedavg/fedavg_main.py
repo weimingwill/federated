@@ -178,8 +178,6 @@ def main(argv):
         print("Use CPU")
         os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
-    start_time = time.time()
-
     np.random.seed(FLAGS.seed)
     tf.random.set_seed(FLAGS.seed)
 
@@ -221,6 +219,8 @@ def main(argv):
 
     cumulative_accuracies = []
     cumulative_training_times = []
+    
+    start_time = time.time()
 
     def test():
         sampled_test_data = test_data

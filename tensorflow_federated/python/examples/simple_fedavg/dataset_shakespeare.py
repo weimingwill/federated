@@ -25,8 +25,12 @@ SEQUENCE_LENGTH = 80  # from McMahan et al AISTATS 2017
 # Vocabulary re-used from the Federated Learning for Text Generation tutorial.
 # https://www.tensorflow.org/federated/tutorials/federated_learning_for_text_generation
 CHAR_VOCAB = list(
-    'dhlptx@DHLPTX $(,048cgkoswCGKOSW[_#\'/37;?bfjnrvzBFJNRVZ"&*.26:\naeimquyAEIMQUY]!%)-159\r'
+    # 'dhlptx@DHLPTX $(,048cgkoswCGKOSW[_#\'/37;?bfjnrvzBFJNRVZ"&*.26:\naeimquyAEIMQUY]!%)-159\r'   # original
+    'dhlptxDHLPTX (,048cgkoswCGKOSW\'/37;?bfjnrvzBFJNRVZ".26:\naeimquyAEIMQUY!)-159'  # to match the same vocab size as other implementations; remove &[]_ for four special characters.
+    # "\n !\"&'(),-.0123456789:;>?ABCDEFGHIJKLMNOPQRSTUVWXYZ[]abcdefghijklmnopqrstuvwxyz}"  # From LEAF
 )
+
+
 EVAL_BATCH_SIZE = 10
 
 
